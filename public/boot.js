@@ -5,6 +5,9 @@
 import { init, useAdapter } from "./core.js";
 import { makeRenderAdapter } from "./render.js";
 import { makeSourceAdapter } from "./source.js";
+import { initSettings } from "./settings.js";
+
+initSettings();
 
 init((ctx) => {
   const { state } = ctx;

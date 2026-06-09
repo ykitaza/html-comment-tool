@@ -28,16 +28,23 @@
           <button id="mode-off" class="mode-btn" title="選択を無効化してページを普通に操作">
             ✋ 操作モード
           </button>
+          <button id="open-settings" class="icon-btn" title="設定（プロンプトテンプレート）">⚙</button>
+          <button id="toggle-panel" class="icon-btn" title="コメントパネルを開閉">⟩</button>
         </div>
         <!-- Adapter (render or source) builds the contents at runtime -->
         <div id="frame-wrap"></div>
       </main>
+
+      <!-- Drag handle to resize the comment panel -->
+      <div id="resizer" title="ドラッグで幅を調整"></div>
 
       <!-- Right: comment panel -->
       <aside id="panel">
         <header>
           <h1>コメント</h1>
           <span id="count" class="badge">0</span>
+          <span class="spacer"></span>
+          <button id="collapse-panel" class="icon-btn" title="パネルを隠す">⟩</button>
         </header>
 
         <div id="hint" class="hint">
@@ -53,6 +60,47 @@
         </footer>
       </aside>
     </div>
+
+    <!-- Floating button to reopen the panel when collapsed -->
+    <button id="show-panel" class="show-panel hidden" title="コメントパネルを表示">⟨ コメント</button>
+
+    <!-- Settings drawer: prompt template selection / custom editing -->
+    <div id="settings" class="drawer hidden">
+      <div class="drawer-head">
+        <h2>設定 — プロンプトテンプレート</h2>
+        <button id="settings-close" class="icon-btn" title="閉じる">✕</button>
+      </div>
+      <div class="drawer-body">
+        <label class="field-label">テンプレート</label>
+        <select id="template-select"></select>
+
+        <p class="field-help">
+          AIに渡すプロンプトの口調・目的を選びます。下のテキストはそのまま編集でき、
+          編集すると「カスタム」として保存されます。
+        </p>
+
+        <label class="field-label">本文テンプレート</label>
+        <textarea id="template-body" rows="10" spellcheck="false"></textarea>
+
+        <div class="field-vars">
+          使える差し込み変数:
+          <code>{{file}}</code> <code>{{comments}}</code> <code>{{count}}</code>
+          <br>
+          <code>{{comments}}</code> は各コメント（位置情報＋指摘）の一覧に置き換わります。
+        </div>
+
+        <div class="drawer-actions">
+          <button id="template-reset" class="ghost">このプリセットに戻す</button>
+          <button id="template-save" class="primary">保存</button>
+        </div>
+
+        <div class="drawer-preview-wrap">
+          <label class="field-label">プレビュー（現在のコメントで生成）</label>
+          <pre id="template-preview" class="drawer-preview"></pre>
+        </div>
+      </div>
+    </div>
+    <div id="settings-backdrop" class="backdrop hidden"></div>
 
     <!-- New-comment popover -->
     <div id="composer" class="composer hidden">

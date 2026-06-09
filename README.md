@@ -39,15 +39,35 @@ AI にファイルを生成してもらう機会は増えたものの、
 自動的に CSS セレクタ／行番号などの位置情報に変換し、コメントとセットで
 AI 向けプロンプトに整形します。
 
+## インストール不要で実行（npx）
+
+GitHub から直接実行できます（npm publish 不要）:
+
+```bash
+npx github:ykitaza/html-comment-tool ./design.html
+```
+
+npm に公開済みなら:
+
+```bash
+npx html-comment-tool ./design.html
+```
+
+ローカルにクローンして使う場合:
+
+```bash
+git clone https://github.com/ykitaza/html-comment-tool.git
+cd html-comment-tool
+node bin/cli.js ./path/to/file
+```
+
 ## 使い方
 
 ```bash
-npx html-comment ./design.html      # HTML（プレビュー⇄ソース）
-npx html-comment ./spec.md          # Markdown（プレビュー⇄ソース）
-npx html-comment ./config.yaml      # YAML（ソースのみ）
-npx html-comment ./diagram.drawio   # drawio/XML（ソースのみ）
-# または
-node bin/cli.js ./design.html
+html-comment ./design.html      # HTML（プレビュー⇄ソース）
+html-comment ./spec.md          # Markdown（プレビュー⇄ソース）
+html-comment ./config.yaml      # YAML（ソースのみ）
+html-comment ./diagram.drawio   # drawio/XML（ソースのみ）
 ```
 
 ブラウザが開いたら:

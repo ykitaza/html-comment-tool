@@ -4,7 +4,8 @@
   "description": "Wrap any file (HTML, Markdown, JSON, YAML, XML/drawio, SVG, text) in a review overlay with preview/source toggle; comment on it and copy AI-ready revision prompts.",
   "type": "module",
   "bin": {
-    "html-comment": "bin/cli.js"
+    "html-comment": "bin/cli.js",
+    "html-comment-tool": "bin/cli.js"
   },
   "files": [
     "bin",
@@ -16,5 +17,25 @@
   "engines": {
     "node": ">=18"
   },
-  "license": "MIT"
+  "keywords": [
+    "review",
+    "html",
+    "markdown",
+    "ai",
+    "prompt",
+    "diff",
+    "difit",
+    "comment",
+    "cli"
+  ],
+  "author": "ykitaza",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ykitaza/html-comment-tool.git"
+  },
+  "homepage": "https://github.com/ykitaza/html-comment-tool#readme",
+  "bugs": {
+    "url": "https://github.com/ykitaza/html-comment-tool/issues"
+  }
 }
