@@ -1,0 +1,22 @@
+@startuml
+title ログインフロー
+
+actor ユーザー as user
+participant "ブラウザ" as browser
+participant "APIサーバー" as api
+database "DB" as db
+
+user -> browser: ログイン情報を入力
+browser -> api: POST /login
+api -> db: ユーザー照会
+db --> api: ユーザー情報
+api -> api: パスワード検証
+
+alt 認証成功
+  api --> browser: トークン発行
+  browser --> user: ダッシュボード表示
+else 認証失敗
+  api --> browser: 401 エラー
+  browser --> user: エラー表示
+end
+@enduml

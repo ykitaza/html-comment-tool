@@ -8,6 +8,7 @@ export function makeRenderAdapter({ state, startComposer }) {
   const frameWrap = document.getElementById("frame-wrap");
   let iframe, hoverBox, markers;
   let mode = "element"; // element | text | off
+  let pumlLines = null; // .puml source lines (for plantuml label→line mapping)
 
   function doc() {
     return iframe.contentDocument || iframe.contentWindow.document;
@@ -32,6 +33,15 @@ export function makeRenderAdapter({ state, startComposer }) {
     frameWrap.appendChild(hoverBox);
 
     setupToolbar();
+    // for PlantUML, load the source lines so clicks can map labels → line refs
+    if (state.meta.previewKind === "plantuml" && pumlLines === null) {
+      try {
+        const text = await (await fetch("/__source")).text();
+        pumlLines = text.replace(/\r\n?/g, "\n").split("\n");
+      } catch {
+        pumlLines = [];
+      }
+    }
     await new Promise((res) => {
       iframe.addEventListener("load", () => {
         attachFrameListeners();
@@ -51,8 +61,9 @@ export function makeRenderAdapter({ state, startComposer }) {
       old.replaceWith(btn);
       btn.addEventListener("click", () => setMode(m));
     }
-    // drawio renders as an SVG canvas with no stable per-shape mapping, so the
-    // preview is view-only — precise comments are made in the source (XML) view.
+    // drawio is a cross-origin iframe (view-only). Everything else defaults to
+    // element-select. PlantUML is same-origin inline SVG, so clicks work — but
+    // we locate via the clicked label's text + source line (IDs are unstable).
     setMode(state.meta.previewKind === "drawio" ? "off" : "element");
   }
 
@@ -105,6 +116,7 @@ export function makeRenderAdapter({ state, startComposer }) {
     e.stopPropagation();
     const el = e.target;
     if (!el) return;
+    if (state.meta.previewKind === "plantuml") return onPlantumlClick(el, e);
     startComposer(
       {
         kind: "element",
@@ -116,6 +128,39 @@ export function makeRenderAdapter({ state, startComposer }) {
       },
       framePos(e)
     );
+  }
+
+  // PlantUML: SVG element IDs are unstable, so locate by the clicked label's
+  // text and map it back to the first matching line in the .puml source.
+  function onPlantumlClick(el, e) {
+    // climb to a node that carries readable text (the SVG <text> or its group)
+    let label = (el.textContent || "").trim().replace(/\s+/g, " ");
+    if (!label && el.closest) {
+      const g = el.closest("g");
+      if (g) label = (g.textContent || "").trim().replace(/\s+/g, " ");
+    }
+    const srcLine = label ? findPumlLine(label) : null;
+    startComposer(
+      {
+        kind: "element",
+        selector: label ? `図要素「${truncate(label, 30)}」` : "図要素",
+        label,
+        quote: label || undefined,
+        srcLine: srcLine || undefined,
+        anchor: { fx: 0.5, fy: 0.5 },
+      },
+      framePos(e)
+    );
+  }
+
+  // first source line whose text contains the label (longest-token match)
+  function findPumlLine(label) {
+    if (!pumlLines) return null;
+    const needle = label.split(/\s+/).sort((a, b) => b.length - a.length)[0] || label;
+    for (let i = 0; i < pumlLines.length; i++) {
+      if (pumlLines[i].includes(needle)) return i + 1;
+    }
+    return null;
   }
 
   function onMouseUp(e) {

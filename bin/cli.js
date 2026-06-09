@@ -4,6 +4,7 @@ import { readFile, stat } from "node:fs/promises";
 import { resolve, dirname, extname, join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
+import { deflateRawSync } from "node:zlib";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = resolve(__dirname, "..", "public");
@@ -65,6 +66,10 @@ const PREVIEW_KIND_BY_EXT = {
   ".markdown": "markdown",
   ".drawio": "drawio",
   ".dio": "drawio",
+  ".puml": "plantuml",
+  ".plantuml": "plantuml",
+  ".pu": "plantuml",
+  ".iuml": "plantuml",
 };
 // language hint for the source viewer's syntax highlighting / path extraction
 const LANG_BY_EXT = {
@@ -78,6 +83,10 @@ const LANG_BY_EXT = {
   ".markdown": "markdown",
   ".html": "html",
   ".htm": "html",
+  ".puml": "plantuml",
+  ".plantuml": "plantuml",
+  ".pu": "plantuml",
+  ".iuml": "plantuml",
   ".csv": "csv",
   ".txt": "text",
   ".js": "javascript",
@@ -219,6 +228,22 @@ const server = createServer(async (req, res) => {
       } catch {
         res.writeHead(404);
         return res.end("");
+      }
+    }
+    if (previewKind === "plantuml") {
+      try {
+        const src = await readFile(targetPath, "utf8");
+        const svg = await fetchPlantumlSvg(src);
+        const html = renderPlantumlDoc(svg, src);
+        res.writeHead(200, { "content-type": MIME[".html"] });
+        return res.end(html);
+      } catch (e) {
+        res.writeHead(200, { "content-type": MIME[".html"] });
+        return res.end(
+          `<!DOCTYPE html><meta charset="UTF-8"><body style="font-family:sans-serif;padding:24px;color:#b00">図の生成に失敗しました（PlantUMLサーバーに接続できない可能性があります）。ソース表示に切り替えてください。<br><small>${String(
+            e.message || e
+          )}</small></body>`
+        );
       }
     }
     // HTML: inject data-line on each opening tag so preview comments can map
@@ -532,6 +557,56 @@ function injectLineNumbers(html) {
 // Render a .drawio file as a diagram using the official GraphViewer (loaded
 // from viewer.diagrams.net — requires network). The whole mxfile XML goes into
 // the data-mxgraph "xml" key; GraphViewer handles compressed content too.
+// ---------------------------------------------------------------------------
+// PlantUML: encode the source with PlantUML's deflate + custom base64, fetch
+// the SVG from the public server, and embed it inline so it's same-origin
+// (which lets the front-end attach comments to diagram elements).
+const PLANTUML_SERVER =
+  process.env.PLANTUML_SERVER || "https://www.plantuml.com/plantuml";
+const PLANTUML_ALPHABET =
+  "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-_";
+
+function plantumlEncode64(data) {
+  let r = "";
+  for (let i = 0; i < data.length; i += 3) {
+    const b1 = data[i];
+    const b2 = i + 1 < data.length ? data[i + 1] : 0;
+    const b3 = i + 2 < data.length ? data[i + 2] : 0;
+    r += PLANTUML_ALPHABET[b1 >> 2];
+    r += PLANTUML_ALPHABET[((b1 & 0x3) << 4) | (b2 >> 4)];
+    if (i + 1 < data.length) r += PLANTUML_ALPHABET[((b2 & 0xf) << 2) | (b3 >> 6)];
+    if (i + 2 < data.length) r += PLANTUML_ALPHABET[b3 & 0x3f];
+  }
+  return r;
+}
+function plantumlEncode(text) {
+  const deflated = deflateRawSync(Buffer.from(text, "utf8"), { level: 9 });
+  return plantumlEncode64(deflated);
+}
+async function fetchPlantumlSvg(src) {
+  const url = `${PLANTUML_SERVER}/svg/${plantumlEncode(src)}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`PlantUML server returned ${res.status}`);
+  return await res.text();
+}
+
+function renderPlantumlDoc(svg, src) {
+  // Strip any XML/DOCTYPE prolog from the SVG so it embeds cleanly inline.
+  const inlineSvg = svg.replace(/^[\s\S]*?(<svg)/i, "$1");
+  return `<!DOCTYPE html>
+<html lang="ja"><head><meta charset="UTF-8">
+<style>
+  html,body { margin:0; height:100%; background:#fff; }
+  #wrap { min-height:100vh; display:flex; align-items:flex-start; justify-content:center; padding:20px; box-sizing:border-box; }
+  #wrap svg { max-width:100%; height:auto; }
+  .hc-note { position:fixed; bottom:8px; left:8px; font:12px -apple-system,sans-serif; color:#888; z-index:5; pointer-events:none; }
+</style></head>
+<body>
+  <div id="wrap">${inlineSvg}</div>
+  <div class="hc-note">PlantUML プレビュー（${escapeHtml(PLANTUML_SERVER)}）</div>
+</body></html>`;
+}
+
 function renderDrawioDoc(xml) {
   // Render via drawio's official lightbox viewer (viewer.diagrams.net), passing
   // the raw diagram XML in the URL fragment (#R<urlencoded xml>). This is the
