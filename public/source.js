@@ -15,7 +15,9 @@ import {
   buildPrompt,
   copyText,
   lineRangeOf,
+  escapeHtml,
 } from "./core.js";
+import { dataPathFor } from "./datapath.js";
 
 export function makeSourceAdapter({ state }) {
   let lines = []; // file split into lines
@@ -285,75 +287,9 @@ export function makeSourceAdapter({ state }) {
     ta.addEventListener("blur", () => finish(true));
   }
 
-  // ---- best-effort data path for JSON / YAML (unchanged) ------------------
+  // best-effort JSON/YAML data path for the comment (see datapath.js)
   function computePath(lineNo) {
-    const lang = state.meta.lang;
-    if (lang === "yaml") return yamlPath(lineNo);
-    if (lang === "json") return jsonPath(lineNo);
-    return null;
-  }
-
-  function yamlPath(lineNo) {
-    let lastIndent = Infinity;
-    const path = [];
-    for (let i = lineNo - 1; i >= 0; i--) {
-      const raw = lines[i];
-      if (!raw || !raw.trim() || /^\s*#/.test(raw)) continue;
-      const indent = raw.match(/^\s*/)[0].length;
-      const m = raw.match(/^\s*([\w.\-]+)\s*:/);
-      if (m && indent < lastIndent) {
-        path.unshift(m[1]);
-        lastIndent = indent;
-        if (indent === 0) break;
-      }
-    }
-    return path.length ? path.join(".") : null;
-  }
-
-  function jsonPath(lineNo) {
-    const stack = [];
-    let pendingKey = null;
-    for (let i = 0; i < lineNo; i++) {
-      const line = lines[i];
-      const isTarget = i === lineNo - 1;
-      let j = 0;
-      while (j < line.length) {
-        const ch = line[j];
-        if (ch === '"') {
-          let k = j + 1;
-          let str = "";
-          while (k < line.length) {
-            if (line[k] === "\\") {
-              str += line[k + 1] || "";
-              k += 2;
-              continue;
-            }
-            if (line[k] === '"') break;
-            str += line[k];
-            k++;
-          }
-          if (line.slice(k + 1).match(/^\s*:/)) pendingKey = str;
-          j = k + 1;
-          continue;
-        }
-        if (ch === "{" || ch === "[") {
-          stack.push({ key: pendingKey });
-          pendingKey = null;
-        } else if (ch === "}" || ch === "]") {
-          stack.pop();
-          pendingKey = null;
-        }
-        j++;
-      }
-      if (isTarget) {
-        const km = line.match(/^\s*"([^"]+)"\s*:/);
-        const keys = stack.map((s) => s.key).filter(Boolean);
-        if (km && keys[keys.length - 1] !== km[1]) keys.push(km[1]);
-        return keys.length ? keys.join(".") : null;
-      }
-    }
-    const keys = stack.map((s) => s.key).filter(Boolean);
-    return keys.length ? keys.join(".") : null;
+    return dataPathFor(state.meta.lang, lines, lineNo);
   }
 
   // ---- adapter interface --------------------------------------------------
@@ -408,8 +344,4 @@ export function makeSourceAdapter({ state }) {
   }
 
   return { mount, relocate, reveal, setActive, clearSelection };
-}
-
-function escapeHtml(s) {
-  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }

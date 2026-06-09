@@ -453,6 +453,11 @@ export function truncate(s, n) {
   return s.length > n ? s.slice(0, n - 1) + "…" : s;
 }
 
+// Escape text for safe insertion into HTML (used by adapters building markup).
+export function escapeHtml(s) {
+  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
 // The source line range a comment refers to, if any — so the source view can
 // show preview-made comments inline too. Returns [start, end] or null.
 // - line comments carry .line / .range
