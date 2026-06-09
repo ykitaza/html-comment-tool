@@ -14,7 +14,19 @@ function uiRoot(context) {
   return path.join(context.extensionPath, "..", "public");
 }
 
-const RENDER_EXTS = new Set([".html", ".htm"]);
+// Shared render lib (Markdown→HTML, HTML line injection). Bundled into media/
+// at package time; falls back to ../lib in dev. It's ESM, so dynamic-import it.
+async function loadRenderLib(context) {
+  const bundled = path.join(context.extensionPath, "media", "render-lib.mjs");
+  const dev = path.join(context.extensionPath, "..", "lib", "render.js");
+  const target = fs.existsSync(bundled) ? bundled : dev;
+  return import(require("url").pathToFileURL(target).href);
+}
+
+const PREVIEW_KIND_BY_EXT = {
+  ".html": "html", ".htm": "html",
+  ".md": "markdown", ".markdown": "markdown",
+};
 const LANG_BY_EXT = {
   ".json": "json", ".yaml": "yaml", ".yml": "yaml", ".xml": "xml",
   ".svg": "xml", ".md": "markdown", ".markdown": "markdown",
@@ -59,15 +71,29 @@ async function openReview(context, fileUri) {
     source = "";
   }
 
+  // HTML / Markdown get a rendered preview (built on the host); everything else
+  // is source-only. drawio/plantuml previews aren't wired into the extension yet.
+  const previewKind = PREVIEW_KIND_BY_EXT[ext] || "none";
+  let previewHtml = null;
+  if (previewKind !== "none") {
+    try {
+      const lib = await loadRenderLib(context);
+      previewHtml =
+        previewKind === "markdown"
+          ? lib.renderMarkdownDoc(source)
+          : lib.injectLineNumbers(source);
+    } catch (e) {
+      // rendering failed → fall back to source-only
+    }
+  }
+
   const meta = {
     file: fileName,
     path: fsPath,
     dir: path.dirname(fsPath),
     clean: false,
-    // v1: source-only review (preview modes come later). Source covers every
-    // file with line comments + data-path for json/yaml.
-    previewKind: "none",
-    defaultView: "source",
+    previewKind: previewHtml ? previewKind : "none",
+    defaultView: previewHtml ? "preview" : "source",
     lang: LANG_BY_EXT[ext] || "text",
   };
 
@@ -75,7 +101,7 @@ async function openReview(context, fileUri) {
   const storeKey = "htmlComment:" + fsPath;
   const saved = context.workspaceState.get(storeKey, null);
 
-  webview.html = buildHtml(webview, uiUri, { meta, source, saved });
+  webview.html = buildHtml(webview, uiUri, { meta, source, saved, previewHtml });
 
   // messages from the webview: persist + clipboard + open-line
   panel.webview.onDidReceiveMessage(async (msg) => {
@@ -96,12 +122,16 @@ async function openReview(context, fileUri) {
 }
 
 function buildHtml(webview, uiUri, data) {
+  // frame-src 'self' allows the srcdoc preview iframe; https:/'unsafe-eval'
+  // let the Markdown preview's mermaid (ESM from cdn.jsdelivr.net) run.
   const csp = [
     `default-src 'none'`,
     `img-src ${webview.cspSource} https: data:`,
-    `style-src ${webview.cspSource} 'unsafe-inline'`,
-    `script-src ${webview.cspSource} 'unsafe-inline'`,
-    `font-src ${webview.cspSource} https:`,
+    `style-src ${webview.cspSource} 'unsafe-inline' https:`,
+    `script-src ${webview.cspSource} 'unsafe-inline' 'unsafe-eval' https:`,
+    `font-src ${webview.cspSource} https: data:`,
+    `connect-src ${webview.cspSource} https:`,
+    `frame-src 'self' data:`,
   ].join("; ");
 
   // The bootstrap data + a fetch shim are injected before the UI modules load.
@@ -176,6 +206,9 @@ function buildHtml(webview, uiUri, data) {
     // --- host bridge: feed the shared UI without an HTTP server ---
     const vscode = acquireVsCodeApi();
     const BOOT = ${injected};
+
+    // preview HTML (HTML/Markdown) → render adapter loads it via iframe srcdoc
+    if (BOOT.previewHtml) window.__PREVIEW_HTML__ = BOOT.previewHtml;
 
     // localStorage shim backed by the extension's workspace state
     const savedComments = BOOT.saved; // {path, comments} | null

@@ -23,7 +23,14 @@ export function makeRenderAdapter({ state, startComposer }) {
     iframe = document.createElement("iframe");
     iframe.id = "target";
     iframe.title = "target";
-    iframe.src = "/target";
+    // In a host without an HTTP server (VS Code webview), the preview HTML is
+    // injected as a string; load it via srcdoc (same-origin → clickable).
+    // Otherwise load the CLI's /target endpoint.
+    if (typeof window.__PREVIEW_HTML__ === "string") {
+      iframe.srcdoc = window.__PREVIEW_HTML__;
+    } else {
+      iframe.src = "/target";
+    }
     markers = document.createElement("div");
     markers.id = "markers";
     hoverBox = document.createElement("div");
