@@ -409,9 +409,19 @@ function renderMarkdownBody(md) {
         i++;
       }
       i++; // closing fence
-      out.push(
-        `<pre${tag(lineNo)}><code class="lang-${escapeHtml(langName)}">${escapeHtml(buf.join("\n"))}</code></pre>`
-      );
+      const code = buf.join("\n");
+      // mermaid blocks render as diagrams; mermaid.run() reads .mermaid divs.
+      // Keep the raw source in a data attr so we don't lose it if rendering fails.
+      if (/^mermaid$/i.test(langName)) {
+        const attrSrc = escapeHtml(code).replace(/"/g, "&quot;");
+        out.push(
+          `<div class="mermaid"${tag(lineNo)} data-mermaid-src="${attrSrc}">${escapeHtml(code)}</div>`
+        );
+      } else {
+        out.push(
+          `<pre${tag(lineNo)}><code class="lang-${escapeHtml(langName)}">${escapeHtml(code)}</code></pre>`
+        );
+      }
       continue;
     }
 
@@ -797,9 +807,35 @@ function renderMarkdownDoc(md) {
   img { max-width: 100%; }
   a { color: #2f6bd6; }
   hr { border: none; border-top: 1px solid #e2e6ef; margin: 1.6em 0; }
+  .mermaid { background:#fff; text-align:center; margin: 1em 0; }
+  .mermaid[data-rendered] { padding: 4px; }
+  .mermaid-error { background:#fff5f5; border:1px solid #f3c0c0; color:#b00; border-radius:8px; padding:10px 14px; white-space:pre-wrap; font-family:ui-monospace,monospace; font-size:12px; }
 </style></head>
 <body>
 ${body}
+<script type="module">
+  // Render fenced mermaid blocks as diagrams. Loaded from CDN (requires
+  // network); if it fails, the raw mermaid source remains visible as text.
+  try {
+    const mermaid = (await import("https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs")).default;
+    mermaid.initialize({ startOnLoad: false, securityLevel: "loose" });
+    const blocks = document.querySelectorAll(".mermaid");
+    for (let i = 0; i < blocks.length; i++) {
+      const el = blocks[i];
+      const src = el.getAttribute("data-mermaid-src") || el.textContent;
+      try {
+        const { svg } = await mermaid.render("mmd-" + i, src);
+        el.innerHTML = svg;
+        el.setAttribute("data-rendered", "1");
+      } catch (e) {
+        el.innerHTML = '<div class="mermaid-error">Mermaid 描画エラー: ' +
+          String(e && e.message || e) + '</div>';
+      }
+    }
+  } catch (e) {
+    // mermaid library failed to load (offline?) — leave raw text blocks as-is.
+  }
+</script>
 </body></html>`;
 }
 
