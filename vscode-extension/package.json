@@ -1,0 +1,48 @@
+{
+  "name": "html-comment-review",
+  "displayName": "html-comment: Review for AI",
+  "description": "Review any file in a Webview and copy AI-ready revision prompts (line/element comments). Companion to the html-comment CLI.",
+  "version": "0.1.0",
+  "publisher": "ykitaza",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./extension.js",
+  "activationEvents": [],
+  "contributes": {
+    "commands": [
+      {
+        "command": "htmlComment.review",
+        "title": "html-comment: Review for AI"
+      }
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "htmlComment.review",
+          "group": "navigation@99",
+          "when": "!explorerResourceIsFolder"
+        }
+      ],
+      "editor/title/context": [
+        {
+          "command": "htmlComment.review",
+          "group": "navigation@99"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "htmlComment.review",
+          "group": "navigation@99"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "package": "npx -y @vscode/vsce package --no-dependencies"
+  },
+  "license": "MIT"
+}

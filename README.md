@@ -6,6 +6,12 @@
 [difit](https://github.com/yoshiko-pg/difit) のように `npx` 一発でローカルサーバが
 立ち上がり、ブラウザが開きます。**元のファイルは一切変更しません**（読み込むだけ）。
 
+> **VS Code 拡張**もあります（`vscode-extension/`）。エクスプローラーでファイルを
+> 右クリック →「html-comment: Review for AI」で、同じ UI を横の Webview パネルに
+> 開けます。コメントはワークスペースに保存され、プロンプトはクリップボードへ。
+> v1 はソースレビュー（行コメント）。`vscode-extension/build.sh` で `.vsix` を作成し、
+> `code --install-extension *.vsix` でインストールします。
+
 ## 対応フォーマットと 2 つのビュー
 
 すべてのファイルに **ソースビュー**（生テキスト＋行番号）があります。一部の
