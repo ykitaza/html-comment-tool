@@ -51,7 +51,9 @@ export function makeRenderAdapter({ state, startComposer }) {
       old.replaceWith(btn);
       btn.addEventListener("click", () => setMode(m));
     }
-    setMode("element");
+    // drawio renders as an SVG canvas with no stable per-shape mapping, so the
+    // preview is view-only — precise comments are made in the source (XML) view.
+    setMode(state.meta.previewKind === "drawio" ? "off" : "element");
   }
 
   function setMode(m) {

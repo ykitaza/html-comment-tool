@@ -63,6 +63,8 @@ const PREVIEW_KIND_BY_EXT = {
   ".htm": "html",
   ".md": "markdown",
   ".markdown": "markdown",
+  ".drawio": "drawio",
+  ".dio": "drawio",
 };
 // language hint for the source viewer's syntax highlighting / path extraction
 const LANG_BY_EXT = {
@@ -201,6 +203,17 @@ const server = createServer(async (req, res) => {
       try {
         const md = await readFile(targetPath, "utf8");
         const html = renderMarkdownDoc(md);
+        res.writeHead(200, { "content-type": MIME[".html"] });
+        return res.end(html);
+      } catch {
+        res.writeHead(404);
+        return res.end("");
+      }
+    }
+    if (previewKind === "drawio") {
+      try {
+        const xml = await readFile(targetPath, "utf8");
+        const html = renderDrawioDoc(xml);
         res.writeHead(200, { "content-type": MIME[".html"] });
         return res.end(html);
       } catch {
@@ -514,6 +527,31 @@ function injectLineNumbers(html) {
     i++;
   }
   return out;
+}
+
+// Render a .drawio file as a diagram using the official GraphViewer (loaded
+// from viewer.diagrams.net — requires network). The whole mxfile XML goes into
+// the data-mxgraph "xml" key; GraphViewer handles compressed content too.
+function renderDrawioDoc(xml) {
+  // Render via drawio's official lightbox viewer (viewer.diagrams.net), passing
+  // the raw diagram XML in the URL fragment (#R<urlencoded xml>). This is the
+  // documented share/embed path and renders self-contained — far more reliable
+  // than the in-page GraphViewer embed. Requires network access.
+  const viewerUrl =
+    "https://viewer.diagrams.net/?lightbox=1&highlight=4f8cff&nav=1&toolbar=zoom%20layers#R" +
+    encodeURIComponent(xml);
+  const srcAttr = viewerUrl.replace(/&/g, "&amp;").replace(/"/g, "&quot;");
+  return `<!DOCTYPE html>
+<html lang="ja"><head><meta charset="UTF-8">
+<style>
+  html,body { margin:0; height:100%; background:#fff; }
+  iframe { width:100%; height:100vh; border:0; display:block; }
+  .hc-note { position:fixed; bottom:8px; left:8px; font:12px -apple-system,sans-serif; color:#888; z-index:5; pointer-events:none; }
+</style></head>
+<body>
+  <iframe src="${srcAttr}" title="drawio preview"></iframe>
+  <div class="hc-note">drawio プレビュー（viewer.diagrams.net）</div>
+</body></html>`;
 }
 
 function renderMarkdownDoc(md) {
