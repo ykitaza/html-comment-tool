@@ -208,7 +208,16 @@ const server = createServer(async (req, res) => {
         return res.end("");
       }
     }
-    return serveFile(res, targetPath, MIME[".html"]);
+    // HTML: inject data-line on each opening tag so preview comments can map
+    // back to the source line (enables preview→source comment sync).
+    try {
+      const raw = await readFile(targetPath, "utf8");
+      res.writeHead(200, { "content-type": MIME[".html"] });
+      return res.end(injectLineNumbers(raw));
+    } catch {
+      res.writeHead(404);
+      return res.end("");
+    }
   }
 
   // Browser tab closed/navigated away: schedule shutdown unless --keep-alive.
@@ -451,6 +460,60 @@ function renderList(items, _pos, baseLine, tag) {
   }
   html += ordered ? "</ol>" : "</ul>";
   return html;
+}
+
+// Add data-line="N" (1-based source line) to each opening HTML tag, so a
+// comment made in the rendered preview can reference the original line. Tags
+// inside <script>/<style>/<pre> are left alone. Existing attributes are kept.
+function injectLineNumbers(html) {
+  let line = 1;
+  let out = "";
+  let i = 0;
+  const skipTags = { script: true, style: true, pre: true, textarea: true };
+  while (i < html.length) {
+    const ch = html[i];
+    if (ch === "\n") line++;
+    if (ch === "<") {
+      // comment / doctype / closing tag — pass through, but still count lines
+      if (html.startsWith("<!--", i)) {
+        const end = html.indexOf("-->", i);
+        const chunk = html.slice(i, end === -1 ? html.length : end + 3);
+        line += (chunk.match(/\n/g) || []).length;
+        out += chunk;
+        i += chunk.length;
+        continue;
+      }
+      const m = html.slice(i).match(/^<\/?([a-zA-Z][\w-]*)([^>]*)>/);
+      if (m) {
+        const isClosing = m[0][1] === "/";
+        const tag = m[1].toLowerCase();
+        let full = m[0];
+        if (!isClosing && !/\sdata-line=/.test(full)) {
+          // insert data-line right after the tag name
+          full = full.replace(/^<([a-zA-Z][\w-]*)/, `<$1 data-line="${line}"`);
+        }
+        out += full;
+        const consumed = m[0].length;
+        // advance line count for newlines inside the tag text
+        line += (m[0].match(/\n/g) || []).length;
+        i += consumed;
+        // if this tag's content should be skipped, copy raw until its close
+        if (!isClosing && skipTags[tag]) {
+          const close = html.toLowerCase().indexOf(`</${tag}`, i);
+          if (close !== -1) {
+            const inner = html.slice(i, close);
+            line += (inner.match(/\n/g) || []).length;
+            out += inner;
+            i = close;
+          }
+        }
+        continue;
+      }
+    }
+    out += ch;
+    i++;
+  }
+  return out;
 }
 
 function renderMarkdownDoc(md) {

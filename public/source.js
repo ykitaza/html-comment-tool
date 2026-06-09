@@ -14,6 +14,7 @@ import {
   deleteComment,
   buildPrompt,
   copyText,
+  lineRangeOf,
 } from "./core.js";
 
 export function makeSourceAdapter({ state }) {
@@ -185,11 +186,13 @@ export function makeSourceAdapter({ state }) {
   function renderThreads() {
     // remove existing thread cards
     code.querySelectorAll(".src-thread").forEach((el) => el.remove());
-    // group comments by their anchor line (last line of the range)
+    // group comments by their anchor line (last line of the range). Includes
+    // preview-made comments that carry a source line (mdLine / srcLine).
     const byLine = new Map();
     state.comments.forEach((c) => {
-      if (c.kind !== "lines") return;
-      const anchor = c.range ? c.range[1] : c.line;
+      const range = lineRangeOf(c);
+      if (!range) return;
+      const anchor = range[1];
       if (!byLine.has(anchor)) byLine.set(anchor, []);
       byLine.get(anchor).push(c);
     });
@@ -211,9 +214,14 @@ export function makeSourceAdapter({ state }) {
 
     const head = document.createElement("div");
     head.className = "src-card-head";
-    head.innerHTML = `<span class="comment-num">${idx}</span><span class="src-card-ref">${c.selector}${
+    // Show a line-based ref. Preview-origin comments are tagged so it's clear
+    // they were made in the rendered view.
+    const range = lineRangeOf(c);
+    const ref = range ? (range[0] === range[1] ? `L${range[0]}` : `L${range[0]}-L${range[1]}`) : c.selector;
+    const fromPreview = c.kind !== "lines";
+    head.innerHTML = `<span class="comment-num">${idx}</span><span class="src-card-ref">${ref}${
       c.path ? ` · ${escapeHtml(c.path)}` : ""
-    }</span>`;
+    }</span>${fromPreview ? `<span class="src-card-tag">プレビュー</span>` : ""}`;
 
     const copyBtn = document.createElement("button");
     copyBtn.className = "src-card-btn";
@@ -353,16 +361,17 @@ export function makeSourceAdapter({ state }) {
     // mark commented lines + (re)draw inline threads
     lineEls.forEach((row) => row.classList.remove("commented"));
     state.comments.forEach((c) => {
-      if (c.kind !== "lines") return;
-      const [a, b] = c.range || [c.line, c.line];
-      for (let n = a; n <= b; n++) lineEls[n - 1]?.classList.add("commented");
+      const range = lineRangeOf(c);
+      if (!range) return;
+      for (let n = range[0]; n <= range[1]; n++) lineEls[n - 1]?.classList.add("commented");
     });
     renderThreads();
   }
 
   function reveal(c) {
-    if (c.kind !== "lines") return;
-    const row = lineEls[(c.line || (c.range && c.range[0]) || 1) - 1];
+    const range = lineRangeOf(c);
+    if (!range) return;
+    const row = lineEls[range[0] - 1];
     if (row) row.scrollIntoView({ behavior: "smooth", block: "center" });
     flashLines(c);
     // also highlight the matching inline card
@@ -374,8 +383,9 @@ export function makeSourceAdapter({ state }) {
   }
 
   function flashLines(c) {
-    const [a, b] = c.range || [c.line, c.line];
-    for (let n = a; n <= b; n++) {
+    const range = lineRangeOf(c);
+    if (!range) return;
+    for (let n = range[0]; n <= range[1]; n++) {
       const row = lineEls[n - 1];
       if (!row) continue;
       row.classList.add("flash");
@@ -386,9 +396,10 @@ export function makeSourceAdapter({ state }) {
   function setActive(id) {
     lineEls.forEach((row) => row.classList.remove("active-line"));
     const c = state.comments.find((x) => x.id === id);
-    if (!c || c.kind !== "lines") return;
-    const [a, b] = c.range || [c.line, c.line];
-    for (let n = a; n <= b; n++) lineEls[n - 1]?.classList.add("active-line");
+    if (!c) return;
+    const range = lineRangeOf(c);
+    if (!range) return;
+    for (let n = range[0]; n <= range[1]; n++) lineEls[n - 1]?.classList.add("active-line");
   }
 
   function clearSelection() {

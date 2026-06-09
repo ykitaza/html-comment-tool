@@ -109,7 +109,7 @@ export function makeRenderAdapter({ state, startComposer }) {
         selector: cssPath(el),
         snippet: outerHtmlSnippet(el),
         label: describeEl(el),
-        mdLine: mdLineOf(el), // present only for Markdown preview
+        ...lineRefOf(el), // mdLine (Markdown) or srcLine (HTML) for sync
         anchor: { fx: 0.5, fy: 0.5 },
       },
       framePos(e)
@@ -133,21 +133,23 @@ export function makeRenderAdapter({ state, startComposer }) {
         selector: cssPath(container),
         quote: text,
         label: describeEl(container),
-        mdLine: mdLineOf(container),
+        ...lineRefOf(container),
         anchor: { fx: 0.05, fy: 0.1 },
       },
       framePos(e)
     );
   }
 
-  // For Markdown preview: the nearest ancestor carrying the source line number.
-  function mdLineOf(el) {
+  // Nearest ancestor's source line number, for preview→source sync.
+  // Markdown blocks carry data-md-line; injected HTML carries data-line.
+  function lineRefOf(el) {
     let n = el;
     while (n && n.nodeType === 1) {
-      if (n.dataset && n.dataset.mdLine) return Number(n.dataset.mdLine);
+      if (n.dataset?.mdLine) return { mdLine: Number(n.dataset.mdLine) };
+      if (n.dataset?.line) return { srcLine: Number(n.dataset.line) };
       n = n.parentElement;
     }
-    return null;
+    return {};
   }
 
   function framePos(e) {

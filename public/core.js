@@ -268,9 +268,10 @@ export function renderComments() {
 }
 
 function kindLabel(c) {
-  if (c.kind === "text") return "テキスト";
   if (c.kind === "lines") return c.range ? `L${c.range[0]}-L${c.range[1]}` : `L${c.line}`;
-  if (c.kind === "element") return "要素";
+  const at = c.mdLine || c.srcLine ? ` · L${c.mdLine || c.srcLine}` : "";
+  if (c.kind === "text") return "テキスト" + at;
+  if (c.kind === "element") return "要素" + at;
   return c.kind || "";
 }
 
@@ -359,6 +360,7 @@ export function buildPrompt(subset) {
       if (c.quote) lines.push(`- 対象テキスト: 「${c.quote}」`);
     } else {
       lines.push(`- 対象セレクタ: \`${c.selector}\``);
+      if (c.srcLine) lines.push(`- 対象行: \`L${c.srcLine}\``);
       if (c.kind === "text" && c.quote) lines.push(`- 対象テキスト: 「${c.quote}」`);
       if (c.kind === "element" && c.snippet) {
         lines.push("- 該当HTML:");
@@ -381,4 +383,16 @@ export function buildPrompt(subset) {
 export function truncate(s, n) {
   s = String(s);
   return s.length > n ? s.slice(0, n - 1) + "…" : s;
+}
+
+// The source line range a comment refers to, if any — so the source view can
+// show preview-made comments inline too. Returns [start, end] or null.
+// - line comments carry .line / .range
+// - preview comments carry .mdLine (Markdown) or .srcLine (HTML), set by render
+export function lineRangeOf(c) {
+  if (c.kind === "lines") {
+    return c.range ? [c.range[0], c.range[1]] : [c.line, c.line];
+  }
+  const n = c.mdLine || c.srcLine;
+  return n ? [n, n] : null;
 }
