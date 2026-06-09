@@ -58,6 +58,28 @@ html, body {
 
 .spacer { flex: 1; }
 
+/* segmented view toggle (preview / source) */
+.seg {
+  display: inline-flex;
+  margin-left: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.seg[hidden] { display: none; }
+.seg-btn {
+  background: var(--panel-2);
+  color: var(--muted);
+  border: none;
+  padding: 6px 12px;
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.seg-btn + .seg-btn { border-left: 1px solid var(--border); }
+.seg-btn:hover { color: var(--text); }
+.seg-btn.active { background: var(--accent); color: #fff; }
+
 .mode-btn {
   background: var(--panel-2);
   color: var(--muted);

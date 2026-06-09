@@ -12,7 +12,13 @@
       <main id="stage">
         <div id="toolbar">
           <span id="file-label">…</span>
+          <!-- View toggle: preview (rendered) vs source (raw text) -->
+          <div id="view-toggle" class="seg" hidden>
+            <button id="view-preview" class="seg-btn" title="プレビュー表示">👁 プレビュー</button>
+            <button id="view-source" class="seg-btn" title="ソース表示">&lt;&gt; ソース</button>
+          </div>
           <span class="spacer"></span>
+          <!-- Selection sub-modes — only meaningful in HTML preview -->
           <button id="mode-element" class="mode-btn active" title="クリックで要素を選択">
             ⬚ 要素を選択
           </button>

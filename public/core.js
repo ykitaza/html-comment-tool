@@ -72,7 +72,10 @@ export async function init(makeAdapter) {
     load();
   }
 
-  adapter = makeAdapter({ state, startComposer, refresh });
+  // makeAdapter may return an adapter, or a "controller" that manages multiple
+  // views and exposes its own mount(). Either way it must satisfy the adapter
+  // interface (mount/relocate/reveal/setActive/clearSelection).
+  adapter = makeAdapter({ state, startComposer, refresh, useAdapter });
   await adapter.mount();
   renderComments();
   adapter.relocate?.();
@@ -84,6 +87,14 @@ export async function init(makeAdapter) {
       navigator.sendBeacon("/__bye");
     } catch {}
   });
+}
+
+// Swap the active adapter (used when toggling preview/source). The new adapter
+// must already be mounted. Re-renders the panel + repositions markers.
+export function useAdapter(next) {
+  adapter = next;
+  renderComments();
+  adapter?.relocate?.();
 }
 
 // adapters call this after the view changes (scroll/resize/reflow)
@@ -294,7 +305,9 @@ export function buildPrompt(subset) {
   const list = subset && subset.length ? subset : state.comments;
   const fullPath = state.meta.path || state.meta.file || "the file";
   const single = list.length === 1;
-  const noun = state.meta.viewMode === "source" ? "ファイル" : "HTML";
+  // What we ask the AI to modify: the actual file. For pure-HTML targets keep
+  // saying "HTML"; for everything else (md, yaml, json, ...) say "ファイル".
+  const noun = state.meta.previewKind === "html" ? "HTML" : "ファイル";
   const lines = [];
   lines.push(
     `以下は \`${fullPath}\` のレビューコメントです。${single ? "コメント" : "各コメント"}に従って${noun}を修正してください。`
@@ -315,6 +328,10 @@ export function buildPrompt(subset) {
         lines.push(c.snippet);
         lines.push("```");
       }
+    } else if (c.mdLine) {
+      // Markdown preview: the source .md line is the actionable locator.
+      lines.push(`- 対象行(Markdown): \`L${c.mdLine}\``);
+      if (c.quote) lines.push(`- 対象テキスト: 「${c.quote}」`);
     } else {
       lines.push(`- 対象セレクタ: \`${c.selector}\``);
       if (c.kind === "text" && c.quote) lines.push(`- 対象テキスト: 「${c.quote}」`);

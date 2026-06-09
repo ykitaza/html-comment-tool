@@ -44,8 +44,12 @@ export function makeRenderAdapter({ state, startComposer }) {
   function setupToolbar() {
     const map = { element: "mode-element", text: "mode-text", off: "mode-off" };
     for (const [m, id] of Object.entries(map)) {
-      const btn = document.getElementById(id);
-      if (btn) btn.addEventListener("click", () => setMode(m));
+      const old = document.getElementById(id);
+      if (!old) continue;
+      // replace with a clone to drop any listeners from a previous mount
+      const btn = old.cloneNode(true);
+      old.replaceWith(btn);
+      btn.addEventListener("click", () => setMode(m));
     }
     setMode("element");
   }
@@ -105,6 +109,7 @@ export function makeRenderAdapter({ state, startComposer }) {
         selector: cssPath(el),
         snippet: outerHtmlSnippet(el),
         label: describeEl(el),
+        mdLine: mdLineOf(el), // present only for Markdown preview
         anchor: { fx: 0.5, fy: 0.5 },
       },
       framePos(e)
@@ -128,10 +133,21 @@ export function makeRenderAdapter({ state, startComposer }) {
         selector: cssPath(container),
         quote: text,
         label: describeEl(container),
+        mdLine: mdLineOf(container),
         anchor: { fx: 0.05, fy: 0.1 },
       },
       framePos(e)
     );
+  }
+
+  // For Markdown preview: the nearest ancestor carrying the source line number.
+  function mdLineOf(el) {
+    let n = el;
+    while (n && n.nodeType === 1) {
+      if (n.dataset && n.dataset.mdLine) return Number(n.dataset.mdLine);
+      n = n.parentElement;
+    }
+    return null;
   }
 
   function framePos(e) {

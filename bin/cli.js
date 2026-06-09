@@ -53,11 +53,17 @@ try {
 const targetDir = dirname(targetPath);
 const targetName = relative(targetDir, targetPath);
 
-// Decide how to present the file. "render" = show it as a live page in the
-// iframe (HTML). "source" = show the raw text with line numbers and let the
-// user comment on lines/ranges (JSON, YAML, XML, .drawio, plain text, ...).
+// Every file gets a SOURCE view (raw text + line numbers). Some files also get
+// a PREVIEW view: HTML renders in an iframe, Markdown renders as converted HTML.
+// The client toggles between the two (Obsidian-style). previewKind tells it
+// which preview to build; "none" means source-only (no toggle).
 const ext = extname(targetPath).toLowerCase();
-const RENDER_EXTS = new Set([".html", ".htm"]);
+const PREVIEW_KIND_BY_EXT = {
+  ".html": "html",
+  ".htm": "html",
+  ".md": "markdown",
+  ".markdown": "markdown",
+};
 // language hint for the source viewer's syntax highlighting / path extraction
 const LANG_BY_EXT = {
   ".json": "json",
@@ -68,6 +74,8 @@ const LANG_BY_EXT = {
   ".svg": "xml",
   ".md": "markdown",
   ".markdown": "markdown",
+  ".html": "html",
+  ".htm": "html",
   ".csv": "csv",
   ".txt": "text",
   ".js": "javascript",
@@ -78,7 +86,8 @@ const LANG_BY_EXT = {
   ".ini": "ini",
   ".sh": "shell",
 };
-const viewMode = RENDER_EXTS.has(ext) ? "render" : "source";
+const previewKind = PREVIEW_KIND_BY_EXT[ext] || "none"; // html | markdown | none
+const defaultView = previewKind === "none" ? "source" : "preview"; // initial view
 const lang = LANG_BY_EXT[ext] || "text";
 
 const MIME = {
@@ -166,7 +175,8 @@ const server = createServer(async (req, res) => {
         path: targetPath,
         dir: targetDir,
         clean,
-        viewMode, // "render" | "source"
+        previewKind, // "html" | "markdown" | "none"
+        defaultView, // "preview" | "source"
         lang,
       })
     );
@@ -184,8 +194,20 @@ const server = createServer(async (req, res) => {
     }
   }
 
-  // The target HTML, rendered inside the iframe ----------------------------
+  // The target shown inside the preview iframe. For HTML this is the file
+  // itself; for Markdown it's the converted HTML document.
   if (url === "/target" || url === "/target/") {
+    if (previewKind === "markdown") {
+      try {
+        const md = await readFile(targetPath, "utf8");
+        const html = renderMarkdownDoc(md);
+        res.writeHead(200, { "content-type": MIME[".html"] });
+        return res.end(html);
+      } catch {
+        res.writeHead(404);
+        return res.end("");
+      }
+    }
     return serveFile(res, targetPath, MIME[".html"]);
   }
 
@@ -235,7 +257,9 @@ server.on("listening", () => {
   const link = `http://127.0.0.1:${actualPort}/`;
   console.log(`\n  html-comment  ▸ reviewing  ${targetName}`);
   console.log(`  full path     ▸ ${targetPath}`);
-  console.log(`  mode          ▸ ${viewMode}${viewMode === "source" ? ` (${lang})` : ""}`);
+  console.log(
+    `  view          ▸ ${previewKind === "none" ? `source (${lang})` : `preview (${previewKind}) + source`}`
+  );
   console.log(`  serving dir   ▸ ${targetDir}`);
   console.log(`  open          ▸ ${link}`);
   if (clean) console.log(`  comments      ▸ cleared (--clean)`);
@@ -252,6 +276,210 @@ function open(url) {
   const child = spawn(cmd, [url], { stdio: "ignore", detached: true, shell: platform === "win32" });
   child.on("error", () => {/* ignore: user can open manually */});
   child.unref();
+}
+
+// ---------------------------------------------------------------------------
+// Minimal, dependency-free Markdown → HTML. Covers the common cases used in
+// design docs: headings, lists (incl. nested), fenced & inline code, blockquote,
+// tables, hr, links, images, bold/italic/strikethrough. Each top-level block
+// carries data-md-line (1-based line in the source .md) so a comment made in
+// the preview can reference the original Markdown line.
+function escapeHtml(s) {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function renderInline(s) {
+  // process code spans first so their contents aren't touched by other rules
+  const codes = [];
+  s = s.replace(/`([^`]+)`/g, (_, c) => {
+    codes.push(c);
+    return ` ${codes.length - 1} `;
+  });
+  s = escapeHtml(s);
+  // images ![alt](url) then links [text](url)
+  s = s.replace(/!\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g, (_, a, u) => `<img alt="${a}" src="${u}">`);
+  s = s.replace(/\[([^\]]+)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g, (_, t, u) => `<a href="${u}">${t}</a>`);
+  s = s.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+  s = s.replace(/(^|[^*])\*([^*]+)\*/g, "$1<em>$2</em>");
+  s = s.replace(/__([^_]+)__/g, "<strong>$1</strong>");
+  s = s.replace(/~~([^~]+)~~/g, "<del>$1</del>");
+  // restore code spans
+  s = s.replace(/ (\d+) /g, (_, i) => `<code>${escapeHtml(codes[+i])}</code>`);
+  return s;
+}
+
+function renderMarkdownBody(md) {
+  const lines = md.replace(/\r\n?/g, "\n").split("\n");
+  const out = [];
+  let i = 0;
+  const tag = (n) => ` data-md-line="${n}"`;
+
+  while (i < lines.length) {
+    const line = lines[i];
+    const lineNo = i + 1;
+
+    // blank
+    if (!line.trim()) { i++; continue; }
+
+    // fenced code
+    const fence = line.match(/^\s*(`{3,}|~{3,})(.*)$/);
+    if (fence) {
+      const marker = fence[1][0];
+      const langName = fence[2].trim();
+      const buf = [];
+      i++;
+      while (i < lines.length && !new RegExp(`^\\s*${marker}{3,}\\s*$`).test(lines[i])) {
+        buf.push(lines[i]);
+        i++;
+      }
+      i++; // closing fence
+      out.push(
+        `<pre${tag(lineNo)}><code class="lang-${escapeHtml(langName)}">${escapeHtml(buf.join("\n"))}</code></pre>`
+      );
+      continue;
+    }
+
+    // heading
+    const h = line.match(/^(#{1,6})\s+(.*)$/);
+    if (h) {
+      const level = h[1].length;
+      out.push(`<h${level}${tag(lineNo)}>${renderInline(h[2].trim())}</h${level}>`);
+      i++;
+      continue;
+    }
+
+    // horizontal rule
+    if (/^\s*([-*_])(\s*\1){2,}\s*$/.test(line)) {
+      out.push(`<hr${tag(lineNo)}>`);
+      i++;
+      continue;
+    }
+
+    // blockquote (consume consecutive > lines)
+    if (/^\s*>/.test(line)) {
+      const buf = [];
+      const start = lineNo;
+      while (i < lines.length && /^\s*>/.test(lines[i])) {
+        buf.push(lines[i].replace(/^\s*>\s?/, ""));
+        i++;
+      }
+      out.push(`<blockquote${tag(start)}>${renderInline(buf.join(" "))}</blockquote>`);
+      continue;
+    }
+
+    // table (header row + |---| separator)
+    if (/\|/.test(line) && i + 1 < lines.length && /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)+\|?\s*$/.test(lines[i + 1])) {
+      const start = lineNo;
+      const splitRow = (r) => r.replace(/^\s*\|/, "").replace(/\|\s*$/, "").split("|").map((c) => c.trim());
+      const headers = splitRow(line);
+      i += 2;
+      const rows = [];
+      while (i < lines.length && /\|/.test(lines[i]) && lines[i].trim()) {
+        rows.push(splitRow(lines[i]));
+        i++;
+      }
+      let t = `<table${tag(start)}><thead><tr>`;
+      t += headers.map((c) => `<th>${renderInline(c)}</th>`).join("");
+      t += "</tr></thead><tbody>";
+      for (const r of rows) {
+        t += "<tr>" + r.map((c) => `<td>${renderInline(c)}</td>`).join("") + "</tr>";
+      }
+      t += "</tbody></table>";
+      out.push(t);
+      continue;
+    }
+
+    // lists (ordered / unordered, with simple nesting by indent)
+    if (/^\s*([-*+]|\d+\.)\s+/.test(line)) {
+      const start = lineNo;
+      const items = []; // { indent, ordered, html, line }
+      while (i < lines.length && /^\s*([-*+]|\d+\.)\s+/.test(lines[i])) {
+        const m = lines[i].match(/^(\s*)([-*+]|\d+\.)\s+(.*)$/);
+        items.push({
+          indent: m[1].length,
+          ordered: /\d+\./.test(m[2]),
+          html: renderInline(m[3]),
+          line: i + 1,
+        });
+        i++;
+      }
+      out.push(renderList(items, 0, start, tag));
+      continue;
+    }
+
+    // paragraph (gather until blank / block start)
+    const buf = [line];
+    const start = lineNo;
+    i++;
+    while (
+      i < lines.length &&
+      lines[i].trim() &&
+      !/^\s*(#{1,6}\s|>|([-*+]|\d+\.)\s|`{3,}|~{3,})/.test(lines[i])
+    ) {
+      buf.push(lines[i]);
+      i++;
+    }
+    out.push(`<p${tag(start)}>${renderInline(buf.join(" "))}</p>`);
+  }
+  return out.join("\n");
+}
+
+// Build a (possibly nested) list from flat items grouped by indent.
+// Items at the base indent become <li>; runs of deeper-indented items become a
+// nested list spliced into the preceding <li>.
+function renderList(items, _pos, baseLine, tag) {
+  if (!items.length) return "";
+  const baseIndent = items[0].indent;
+  const ordered = items[0].ordered;
+  let html = `<${ordered ? "ol" : "ul"}${tag(baseLine)}>`;
+  let i = 0;
+  while (i < items.length) {
+    const it = items[i];
+    let li = `<li${tag(it.line)}>${it.html}`;
+    // collect any immediately-following deeper items as a nested list
+    let j = i + 1;
+    while (j < items.length && items[j].indent > baseIndent) j++;
+    if (j > i + 1) {
+      li += renderList(items.slice(i + 1, j), 0, items[i + 1].line, tag);
+    }
+    li += "</li>";
+    html += li;
+    i = j;
+  }
+  html += ordered ? "</ol>" : "</ul>";
+  return html;
+}
+
+function renderMarkdownDoc(md) {
+  const body = renderMarkdownBody(md);
+  return `<!DOCTYPE html>
+<html lang="ja"><head><meta charset="UTF-8">
+<style>
+  :root { color-scheme: light; }
+  body { font-family: -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif;
+    line-height: 1.7; color: #1a1a2e; max-width: 820px; margin: 0 auto; padding: 32px 28px 80px; }
+  h1,h2,h3,h4 { line-height: 1.3; margin: 1.4em 0 0.5em; }
+  h1 { border-bottom: 2px solid #e2e6ef; padding-bottom: .3em; }
+  h2 { border-bottom: 1px solid #e8ebf2; padding-bottom: .25em; }
+  code { background: #f0f2f7; padding: .15em .4em; border-radius: 4px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .9em; }
+  pre { background: #1c2030; color: #e6e9ef; padding: 14px 16px; border-radius: 8px; overflow:auto; }
+  pre code { background: none; color: inherit; padding: 0; }
+  blockquote { border-left: 4px solid #c9d2e3; margin: 1em 0; padding: .2em 1em; color: #555; background:#f7f9fc; }
+  table { border-collapse: collapse; margin: 1em 0; width: 100%; }
+  th, td { border: 1px solid #d7dce6; padding: 7px 11px; text-align: left; }
+  th { background: #f3f6ff; }
+  ul, ol { padding-left: 1.6em; }
+  img { max-width: 100%; }
+  a { color: #2f6bd6; }
+  hr { border: none; border-top: 1px solid #e2e6ef; margin: 1.6em 0; }
+</style></head>
+<body>
+${body}
+</body></html>`;
 }
 
 function printHelp() {

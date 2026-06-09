@@ -1,7 +1,7 @@
 {
   "name": "html-comment-tool",
   "version": "0.1.0",
-  "description": "Wrap any file (HTML, JSON, YAML, XML/drawio, SVG, Markdown, text) in a review overlay; comment on it and copy AI-ready revision prompts.",
+  "description": "Wrap any file (HTML, Markdown, JSON, YAML, XML/drawio, SVG, text) in a review overlay with preview/source toggle; comment on it and copy AI-ready revision prompts.",
   "type": "module",
   "bin": {
     "html-comment": "bin/cli.js"
