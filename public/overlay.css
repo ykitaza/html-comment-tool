@@ -26,7 +26,8 @@ html, body {
 #app {
   --panel-w: 380px;
   display: grid;
-  grid-template-columns: 1fr 6px var(--panel-w);
+  /* panel width never exceeds ~60% of the viewport so the view always survives */
+  grid-template-columns: minmax(0, 1fr) 6px min(var(--panel-w), 60vw);
   height: 100vh;
   overflow: hidden; /* the page never scrolls; each column scrolls itself */
 }
@@ -45,6 +46,24 @@ html, body {
   transition: background 0.12s;
 }
 #resizer:hover { background: var(--accent); }
+
+/* ---- responsive: narrow widths stack vertically (view on top, panel below) */
+@media (max-width: 720px) {
+  #app {
+    --panel-h: 45vh;
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 1fr) 6px min(var(--panel-h), 70vh);
+  }
+  #app.panel-collapsed {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr 0 0;
+  }
+  /* let the grid track govern height (not 100vh); min-height:0 lets inner
+     100%-height children clip instead of overflowing into the next row */
+  #stage { height: auto !important; min-height: 0; border-right: none; border-bottom: 1px solid var(--border); }
+  #panel { height: auto !important; min-height: 0; border-top: 1px solid var(--border); }
+  #resizer { cursor: row-resize; }
+}
 
 /* small round icon buttons in toolbars/headers */
 .icon-btn {

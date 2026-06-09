@@ -11,6 +11,7 @@ import {
 } from "./core.js";
 
 const PANEL_WIDTH_KEY = "html-comment:panelWidth";
+const PANEL_HEIGHT_KEY = "html-comment:panelHeight";
 const PANEL_OPEN_KEY = "html-comment:panelOpen";
 
 export function initSettings() {
@@ -51,34 +52,52 @@ function setupResizer() {
   const resizer = document.getElementById("resizer");
   if (!resizer) return;
 
+  // narrow layout stacks vertically → the handle resizes height, not width
+  const stacked = () => window.matchMedia("(max-width: 720px)").matches;
+
   const saved = Number(localStorage.getItem(PANEL_WIDTH_KEY));
   if (saved >= 240 && saved <= 900) setWidth(saved);
+  const savedH = Number(localStorage.getItem(PANEL_HEIGHT_KEY));
+  if (savedH >= 120 && savedH <= 1200) setHeight(savedH);
 
   let dragging = false;
   resizer.addEventListener("mousedown", (e) => {
     dragging = true;
-    document.body.style.cursor = "col-resize";
+    document.body.style.cursor = stacked() ? "row-resize" : "col-resize";
     document.body.style.userSelect = "none";
     e.preventDefault();
   });
   window.addEventListener("mousemove", (e) => {
     if (!dragging) return;
-    const w = Math.min(900, Math.max(240, window.innerWidth - e.clientX));
-    setWidth(w);
+    if (stacked()) {
+      const h = Math.min(window.innerHeight - 120, Math.max(120, window.innerHeight - e.clientY));
+      setHeight(h);
+    } else {
+      const w = Math.min(900, Math.max(240, window.innerWidth - e.clientX));
+      setWidth(w);
+    }
   });
   window.addEventListener("mouseup", () => {
     if (!dragging) return;
     dragging = false;
     document.body.style.cursor = "";
     document.body.style.userSelect = "";
-    const w = parseInt(getComputedStyle(app).gridTemplateColumns.split(" ").pop());
     try {
-      localStorage.setItem(PANEL_WIDTH_KEY, String(w));
+      if (stacked()) {
+        localStorage.setItem(PANEL_HEIGHT_KEY, String(app.__panelH || 0));
+      } else {
+        localStorage.setItem(PANEL_WIDTH_KEY, String(app.__panelW || 0));
+      }
     } catch {}
   });
 
   function setWidth(px) {
+    app.__panelW = px;
     app.style.setProperty("--panel-w", `${px}px`);
+  }
+  function setHeight(px) {
+    app.__panelH = px;
+    app.style.setProperty("--panel-h", `${px}px`);
   }
 }
 
