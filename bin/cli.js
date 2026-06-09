@@ -4,7 +4,7 @@ import { readFile, stat } from "node:fs/promises";
 import { resolve, dirname, extname, join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
-import { deflateRawSync } from "node:zlib";
+import { deflateRawSync, inflateSync } from "node:zlib";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = resolve(__dirname, "..", "public");
@@ -97,9 +97,12 @@ const LANG_BY_EXT = {
   ".ini": "ini",
   ".sh": "shell",
 };
-const previewKind = PREVIEW_KIND_BY_EXT[ext] || "none"; // html | markdown | none
+// drawio "editable PNG" export: a real PNG with the diagram XML embedded in a
+// tEXt chunk. Detected by the .drawio.png double extension.
+const isDrawioPng = /\.drawio\.png$/i.test(targetName);
+const previewKind = isDrawioPng ? "drawiopng" : PREVIEW_KIND_BY_EXT[ext] || "none";
 const defaultView = previewKind === "none" ? "source" : "preview"; // initial view
-const lang = LANG_BY_EXT[ext] || "text";
+const lang = isDrawioPng ? "xml" : LANG_BY_EXT[ext] || "text";
 
 const MIME = {
   ".html": "text/html; charset=utf-8",
@@ -196,12 +199,31 @@ const server = createServer(async (req, res) => {
   // Raw text of the target, for the source viewer --------------------------
   if (url === "/__source") {
     try {
-      const text = await readFile(targetPath, "utf8");
+      // For a drawio editable PNG, the "source" is the XML embedded in it.
+      const text = isDrawioPng
+        ? formatXml(extractDrawioXml(await readFile(targetPath)))
+        : await readFile(targetPath, "utf8");
       res.writeHead(200, { "content-type": "text/plain; charset=utf-8" });
       return res.end(text);
     } catch {
       res.writeHead(404);
       return res.end("");
+    }
+  }
+
+  // Raw PNG bytes of a drawio editable PNG (shown as the diagram image) -----
+  if (url === "/__drawiopng-image" && isDrawioPng) {
+    return serveFile(res, targetPath, MIME[".png"]);
+  }
+  // Shape geometry extracted from the embedded XML, for the clickable overlay.
+  if (url === "/__drawiopng-shapes" && isDrawioPng) {
+    try {
+      const xml = extractDrawioXml(await readFile(targetPath));
+      res.writeHead(200, { "content-type": MIME[".json"] });
+      return res.end(JSON.stringify(drawioShapes(xml)));
+    } catch {
+      res.writeHead(200, { "content-type": MIME[".json"] });
+      return res.end(JSON.stringify({ shapes: [], bbox: null }));
     }
   }
 
@@ -229,6 +251,10 @@ const server = createServer(async (req, res) => {
         res.writeHead(404);
         return res.end("");
       }
+    }
+    if (previewKind === "drawiopng") {
+      res.writeHead(200, { "content-type": MIME[".html"] });
+      return res.end(renderDrawioPngDoc());
     }
     if (previewKind === "plantuml") {
       try {
@@ -557,6 +583,125 @@ function injectLineNumbers(html) {
 // Render a .drawio file as a diagram using the official GraphViewer (loaded
 // from viewer.diagrams.net — requires network). The whole mxfile XML goes into
 // the data-mxgraph "xml" key; GraphViewer handles compressed content too.
+// ---------------------------------------------------------------------------
+// drawio editable PNG: the diagram XML is embedded in a PNG tEXt/zTXt chunk
+// under the keyword "mxfile" (URL-encoded). Extract it so we can show the XML
+// as source and overlay clickable shape regions on the image.
+function extractDrawioXml(buf) {
+  if (buf.length < 8 || buf.readUInt32BE(0) !== 0x89504e47) {
+    throw new Error("not a PNG");
+  }
+  let i = 8;
+  while (i + 8 <= buf.length) {
+    const len = buf.readUInt32BE(i);
+    const type = buf.toString("latin1", i + 4, i + 8);
+    const dataStart = i + 8;
+    if (type === "tEXt") {
+      const chunk = buf.slice(dataStart, dataStart + len);
+      const nul = chunk.indexOf(0);
+      const key = chunk.toString("latin1", 0, nul);
+      if (key === "mxfile") {
+        const val = chunk.toString("latin1", nul + 1);
+        return decodeURIComponent(val);
+      }
+    } else if (type === "zTXt") {
+      const chunk = buf.slice(dataStart, dataStart + len);
+      const nul = chunk.indexOf(0);
+      const key = chunk.toString("latin1", 0, nul);
+      if (key === "mxfile") {
+        // after keyword\0 + 1 compression-method byte, zlib-compressed text
+        const comp = chunk.slice(nul + 2);
+        const text = inflateSync(comp).toString("latin1");
+        return decodeURIComponent(text);
+      }
+    }
+    if (type === "IEND") break;
+    i = dataStart + len + 4; // skip data + CRC
+  }
+  throw new Error("no embedded mxfile XML found in PNG");
+}
+
+// Parse shapes (id, label, geometry) from the mxGraphModel XML, plus the page
+// bounding box, so the client can place an overlay region per shape on the
+// scaled image. Also records the source line of each cell for sync.
+function drawioShapes(xml) {
+  const lines = xml.replace(/\r\n?/g, "\n").split("\n");
+  const shapes = [];
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  // Iterate over each <mxCell ...> opening tag. Self-closing cells (<mxCell .../>)
+  // have no geometry; cells with a body may contain <mxGeometry .../>. We slice
+  // the body up to the next </mxCell> or the next <mxCell to avoid one cell's
+  // regex swallowing the following cells.
+  const openRe = /<mxCell\b([^>]*?)(\/?)>/g;
+  let m;
+  while ((m = openRe.exec(xml))) {
+    const attrs = m[1] || "";
+    const selfClose = m[2] === "/";
+    const id = (attrs.match(/\bid="([^"]*)"/) || [])[1];
+    const value = (attrs.match(/\bvalue="([^"]*)"/) || [])[1] || "";
+    const isVertex = /\bvertex="1"/.test(attrs);
+    if (!isVertex || selfClose) continue;
+    // body = from end of this opening tag to the next </mxCell>
+    const bodyStart = m.index + m[0].length;
+    const close = xml.indexOf("</mxCell>", bodyStart);
+    const inner = xml.slice(bodyStart, close === -1 ? undefined : close);
+    const geo = inner.match(/<mxGeometry\b[^>]*\/?>/);
+    if (!geo) continue;
+    const g = geo[0];
+    const x = parseFloat((g.match(/\bx="([-\d.]+)"/) || [])[1]);
+    const y = parseFloat((g.match(/\by="([-\d.]+)"/) || [])[1]);
+    const w = parseFloat((g.match(/\bwidth="([-\d.]+)"/) || [])[1]);
+    const h = parseFloat((g.match(/\bheight="([-\d.]+)"/) || [])[1]);
+    if ([x, y, w, h].some((n) => Number.isNaN(n))) continue;
+    // source line of this cell
+    const upto = xml.slice(0, m.index);
+    const line = upto.split("\n").length;
+    const label = decodeHtmlEntities(value).replace(/<[^>]+>/g, "").trim();
+    shapes.push({ id, label, x, y, w, h, line });
+    minX = Math.min(minX, x); minY = Math.min(minY, y);
+    maxX = Math.max(maxX, x + w); maxY = Math.max(maxY, y + h);
+  }
+  const bbox = shapes.length ? { minX, minY, maxX, maxY } : null;
+  return { shapes, bbox };
+}
+
+function decodeHtmlEntities(s) {
+  return String(s)
+    .replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+    .replace(/&amp;/g, "&");
+}
+
+// pretty-print the mxfile XML a little so the source view has one tag per line
+function formatXml(xml) {
+  return xml
+    .replace(/>\s*</g, ">\n<")
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .join("\n");
+}
+
+// Preview doc for a drawio editable PNG: the image + a clickable overlay built
+// client-side from /__drawiopng-shapes.
+function renderDrawioPngDoc() {
+  return `<!DOCTYPE html>
+<html lang="ja"><head><meta charset="UTF-8">
+<style>
+  html,body { margin:0; height:100%; background:#fff; }
+  #wrap { position:relative; display:inline-block; }
+  #host { min-height:100vh; display:flex; align-items:flex-start; justify-content:center; padding:20px; box-sizing:border-box; }
+  #img { display:block; max-width:100%; height:auto; }
+  .hc-shape { position:absolute; cursor:pointer; border:1.5px solid transparent; border-radius:3px; }
+  .hc-shape:hover { border-color:#4f8cff; background:rgba(79,140,255,0.12); }
+  .hc-note { position:fixed; bottom:8px; left:8px; font:12px -apple-system,sans-serif; color:#888; z-index:5; pointer-events:none; }
+</style></head>
+<body>
+  <div id="host"><div id="wrap"><img id="img" src="/__drawiopng-image" alt="diagram"></div></div>
+  <div class="hc-note">drawio 編集可能PNG（埋め込みXMLから図形を認識）</div>
+</body></html>`;
+}
+
 // ---------------------------------------------------------------------------
 // PlantUML: encode the source with PlantUML's deflate + custom base64, fetch
 // the SVG from the public server, and embed it inline so it's same-origin

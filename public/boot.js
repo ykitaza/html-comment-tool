@@ -5,6 +5,7 @@
 import { init, useAdapter } from "./core.js";
 import { makeRenderAdapter } from "./render.js";
 import { makeSourceAdapter } from "./source.js";
+import { makeDrawioPngAdapter } from "./drawiopng.js";
 import { initSettings } from "./settings.js";
 
 initSettings();
@@ -23,9 +24,13 @@ init((ctx) => {
   let current = null; // "preview" | "source"
   let active = null; // the currently-mounted adapter
 
-  // The render adapter serves both HTML and Markdown previews (both iframes).
+  // Pick the preview adapter for the file kind. render adapter handles
+  // HTML/Markdown/PlantUML (all iframes); drawio editable-PNG has its own
+  // image+overlay adapter.
+  const previewFactory =
+    previewKind === "drawiopng" ? () => makeDrawioPngAdapter(ctx) : () => makeRenderAdapter(ctx);
   const factories = {
-    preview: () => makeRenderAdapter(ctx),
+    preview: previewFactory,
     source: () => makeSourceAdapter(ctx),
   };
 
