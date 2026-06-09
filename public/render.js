@@ -234,6 +234,23 @@ export function makeRenderAdapter({ state, startComposer }) {
   }
 
   function resolve(c) {
+    // PlantUML comments aren't located by CSS selector (unstable IDs) but by
+    // the clicked label's text — re-find the matching SVG <text> element so
+    // the pin reappears after the diagram is re-rendered (e.g. view toggle).
+    if (state.meta.previewKind === "plantuml") {
+      const label = (c.quote || "").trim();
+      if (!label) return null;
+      const texts = doc().querySelectorAll("svg text");
+      for (const t of texts) {
+        if ((t.textContent || "").trim() === label) return t;
+      }
+      // fall back to a partial match on the longest token
+      const needle = label.split(/\s+/).sort((a, b) => b.length - a.length)[0] || label;
+      for (const t of texts) {
+        if ((t.textContent || "").includes(needle)) return t;
+      }
+      return null;
+    }
     try {
       return doc().querySelector(c.selector);
     } catch {
