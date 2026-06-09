@@ -44,7 +44,7 @@ try {
   const s = await stat(targetPath);
   if (!s.isFile()) throw new Error("not a file");
 } catch {
-  console.error(`✗ Cannot read HTML file: ${targetPath}`);
+  console.error(`✗ Cannot read file: ${targetPath}`);
   process.exit(1);
 }
 
@@ -52,6 +52,34 @@ try {
 // (so relative <link>/<img>/<script> in the target keep working).
 const targetDir = dirname(targetPath);
 const targetName = relative(targetDir, targetPath);
+
+// Decide how to present the file. "render" = show it as a live page in the
+// iframe (HTML). "source" = show the raw text with line numbers and let the
+// user comment on lines/ranges (JSON, YAML, XML, .drawio, plain text, ...).
+const ext = extname(targetPath).toLowerCase();
+const RENDER_EXTS = new Set([".html", ".htm"]);
+// language hint for the source viewer's syntax highlighting / path extraction
+const LANG_BY_EXT = {
+  ".json": "json",
+  ".yaml": "yaml",
+  ".yml": "yaml",
+  ".xml": "xml",
+  ".drawio": "xml",
+  ".svg": "xml",
+  ".md": "markdown",
+  ".markdown": "markdown",
+  ".csv": "csv",
+  ".txt": "text",
+  ".js": "javascript",
+  ".mjs": "javascript",
+  ".ts": "typescript",
+  ".css": "css",
+  ".toml": "toml",
+  ".ini": "ini",
+  ".sh": "shell",
+};
+const viewMode = RENDER_EXTS.has(ext) ? "render" : "source";
+const lang = LANG_BY_EXT[ext] || "text";
 
 const MIME = {
   ".html": "text/html; charset=utf-8",
@@ -116,19 +144,44 @@ const server = createServer(async (req, res) => {
   if (url === "/" || url === "/index.html") {
     return serveFile(res, join(PUBLIC_DIR, "index.html"), MIME[".html"]);
   }
-  if (url === "/overlay.js") {
-    return serveFile(res, join(PUBLIC_DIR, "overlay.js"), MIME[".js"]);
-  }
-  if (url === "/overlay.css") {
-    return serveFile(res, join(PUBLIC_DIR, "overlay.css"), MIME[".css"]);
+  // Any of the wrapper's own JS/CSS modules, served from PUBLIC_DIR.
+  const uiAsset = url.match(/^\/([a-z0-9_-]+\.(?:js|css))$/i);
+  if (uiAsset) {
+    const candidate = join(PUBLIC_DIR, uiAsset[1]);
+    // only if it actually exists in PUBLIC_DIR (else fall through to target dir)
+    try {
+      await stat(candidate);
+      return serveFile(res, candidate);
+    } catch {
+      /* not a UI asset — fall through to target-relative serving */
+    }
   }
 
   // Metadata about the target (so the UI can show the file name) ------------
   if (url === "/__meta") {
     res.writeHead(200, { "content-type": MIME[".json"] });
     return res.end(
-      JSON.stringify({ file: targetName, path: targetPath, dir: targetDir, clean })
+      JSON.stringify({
+        file: targetName,
+        path: targetPath,
+        dir: targetDir,
+        clean,
+        viewMode, // "render" | "source"
+        lang,
+      })
     );
+  }
+
+  // Raw text of the target, for the source viewer --------------------------
+  if (url === "/__source") {
+    try {
+      const text = await readFile(targetPath, "utf8");
+      res.writeHead(200, { "content-type": "text/plain; charset=utf-8" });
+      return res.end(text);
+    } catch {
+      res.writeHead(404);
+      return res.end("");
+    }
   }
 
   // The target HTML, rendered inside the iframe ----------------------------
@@ -182,6 +235,7 @@ server.on("listening", () => {
   const link = `http://127.0.0.1:${actualPort}/`;
   console.log(`\n  html-comment  ▸ reviewing  ${targetName}`);
   console.log(`  full path     ▸ ${targetPath}`);
+  console.log(`  mode          ▸ ${viewMode}${viewMode === "source" ? ` (${lang})` : ""}`);
   console.log(`  serving dir   ▸ ${targetDir}`);
   console.log(`  open          ▸ ${link}`);
   if (clean) console.log(`  comments      ▸ cleared (--clean)`);

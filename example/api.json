@@ -1,0 +1,33 @@
+{
+  "name": "cloudnote-api",
+  "version": "2.1.0",
+  "endpoints": {
+    "notes": {
+      "list": {
+        "method": "GET",
+        "path": "/api/notes",
+        "auth": true,
+        "pagination": {
+          "limit": 50,
+          "maxLimit": 200
+        }
+      },
+      "create": {
+        "method": "POST",
+        "path": "/api/notes",
+        "auth": true,
+        "body": {
+          "title": "string",
+          "content": "string",
+          "tags": "string[]"
+        }
+      }
+    },
+    "search": {
+      "method": "GET",
+      "path": "/api/search",
+      "auth": true,
+      "rateLimit": 30
+    }
+  }
+}

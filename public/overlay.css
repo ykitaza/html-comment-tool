@@ -138,6 +138,61 @@ html, body {
 #frame-wrap.mode-element #target,
 #frame-wrap.mode-text #target { cursor: crosshair; }
 
+/* ---------------- source mode ---------------- */
+/* hide the render-only mode buttons when reviewing raw text */
+#toolbar.source-mode .mode-btn { display: none; }
+
+#src-view {
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  background: var(--bg);
+}
+#src-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, "Cascadia Code", monospace;
+  font-size: 13px;
+  line-height: 1.55;
+  padding: 8px 0 40vh; /* bottom padding so last lines can scroll to center */
+  min-width: 100%;
+  width: max-content;
+}
+.src-line {
+  display: flex;
+  align-items: flex-start;
+  white-space: pre;
+  cursor: pointer;
+}
+.src-line:hover { background: rgba(79, 140, 255, 0.07); }
+.src-gutter {
+  flex: 0 0 auto;
+  width: 52px;
+  text-align: right;
+  padding: 0 12px 0 4px;
+  color: #5a6273;
+  user-select: none;
+  border-right: 1px solid var(--border);
+  position: sticky;
+  left: 0;
+  background: var(--bg);
+}
+.src-content {
+  flex: 1 1 auto;
+  padding: 0 16px;
+  color: var(--text);
+}
+.src-line.selecting { background: rgba(79, 140, 255, 0.18); }
+.src-line.commented .src-gutter {
+  color: #1a1a1a;
+  background: var(--pin);
+  font-weight: 700;
+}
+.src-line.active-line { background: rgba(79, 140, 255, 0.14); }
+.src-line.flash { animation: srcflash 0.9s ease-out; }
+@keyframes srcflash {
+  0% { background: rgba(255, 176, 32, 0.5); }
+  100% { background: transparent; }
+}
+
 /* ---------------- panel ---------------- */
 #panel {
   display: flex;

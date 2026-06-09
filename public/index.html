@@ -23,12 +23,8 @@
             ✋ 操作モード
           </button>
         </div>
-        <div id="frame-wrap">
-          <iframe id="target" src="/target" title="target"></iframe>
-          <!-- Overlay canvas for hover highlight + pin markers -->
-          <div id="markers"></div>
-          <div id="hover-box"></div>
-        </div>
+        <!-- Adapter (render or source) builds the contents at runtime -->
+        <div id="frame-wrap"></div>
       </main>
 
       <!-- Right: comment panel -->
@@ -39,7 +35,7 @@
         </header>
 
         <div id="hint" class="hint">
-          左のページで<strong>要素をクリック</strong>するか<strong>テキストを選択</strong>すると、ここにコメントを追加できます。
+          左の<strong>要素／行をクリック</strong>するか<strong>範囲を選択（ドラッグ）</strong>すると、ここにコメントを追加できます。
         </div>
 
         <ul id="comments"></ul>
@@ -62,6 +58,6 @@
       </div>
     </div>
 
-    <script type="module" src="/overlay.js"></script>
+    <script type="module" src="/boot.js"></script>
   </body>
 </html>
