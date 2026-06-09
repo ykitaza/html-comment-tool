@@ -215,6 +215,104 @@ html, body {
   100% { background: transparent; }
 }
 
+/* GitHub-style "+" affordance on the left of the gutter */
+.src-add {
+  flex: 0 0 auto;
+  width: 20px;
+  text-align: center;
+  color: #fff;
+  background: var(--accent);
+  border-radius: 4px;
+  margin: 1px 2px 0;
+  font-weight: 700;
+  line-height: 1.4;
+  opacity: 0;
+  user-select: none;
+  position: sticky;
+  left: 2px;
+  z-index: 1;
+}
+.src-line:hover .src-add { opacity: 1; }
+.src-add:hover { background: var(--accent-2); }
+
+/* inline comment composer (opens under the selected line) */
+.src-composer {
+  background: var(--panel-2);
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  margin: 6px 16px 8px 60px;
+  padding: 10px;
+  white-space: normal;
+  font-family: -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif;
+}
+.src-composer-ref {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  color: var(--accent-2);
+  margin-bottom: 6px;
+}
+.src-composer-ref code { background: rgba(79,140,255,0.12); padding: 1px 5px; border-radius: 4px; }
+.src-composer-input {
+  width: 100%;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px;
+  font: inherit;
+  font-size: 13.5px;
+  resize: vertical;
+}
+.src-composer-input:focus { outline: none; border-color: var(--accent); }
+.src-composer-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+.src-composer-actions button { width: auto; margin: 0; padding: 7px 14px; }
+
+/* saved comment thread cards under a line (GitHub review thread) */
+.src-thread {
+  white-space: normal;
+  margin: 4px 16px 8px 60px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-family: -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif;
+}
+.src-card {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 9px 11px;
+}
+.src-card.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.src-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 5px;
+}
+.src-card-ref {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  color: var(--muted);
+}
+.src-card-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 12.5px;
+  padding: 2px 5px;
+  border-radius: 4px;
+}
+.src-card-btn:first-of-type { margin-left: auto; }
+.src-card-btn:hover { color: var(--text); background: rgba(255,255,255,0.06); }
+.src-card-btn.danger:hover { color: var(--danger); background: rgba(255,107,107,0.1); }
+.src-card-body { font-size: 13.5px; line-height: 1.5; white-space: pre-wrap; }
+
 /* ---------------- panel ---------------- */
 #panel {
   display: flex;

@@ -56,6 +56,31 @@ export function save() {
 }
 
 // ---------------------------------------------------------------------------
+// comment mutations — used by adapters that manage their own inline UI
+// (e.g. the GitHub-style source view). Each persists + re-renders the panel.
+export function addComment(target, body) {
+  const c = { id: state.nextId++, ...target, body };
+  state.comments.push(c);
+  save();
+  renderComments();
+  return c;
+}
+export function updateComment(id, body) {
+  const c = state.comments.find((x) => x.id === id);
+  if (c) {
+    c.body = body;
+    save();
+    renderComments();
+  }
+  return c;
+}
+export function deleteComment(id) {
+  state.comments = state.comments.filter((x) => x.id !== id);
+  save();
+  renderComments();
+}
+
+// ---------------------------------------------------------------------------
 // init: fetch meta, restore comments, let the adapter mount its view
 export async function init(makeAdapter) {
   const meta = await (await fetch("/__meta")).json();
