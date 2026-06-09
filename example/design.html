@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <title>サンプル設計資料</title>
+    <style>
+      body { font-family: "Hiragino Sans", sans-serif; max-width: 720px; margin: 40px auto; line-height: 1.7; color: #222; }
+      h1 { border-bottom: 3px solid #4f8cff; padding-bottom: 8px; }
+      .card { border: 1px solid #ddd; border-radius: 10px; padding: 16px 20px; margin: 16px 0; }
+      table { border-collapse: collapse; width: 100%; }
+      th, td { border: 1px solid #ccc; padding: 8px 10px; text-align: left; }
+      th { background: #f3f6ff; }
+      .cta { background: #4f8cff; color: #fff; border: none; padding: 10px 18px; border-radius: 8px; font-size: 15px; }
+    </style>
+  </head>
+  <body>
+    <h1>新機能: ユーザーダッシュボード</h1>
+    <p id="intro">本ドキュメントは、新しいユーザーダッシュボード機能の設計概要をまとめたものです。</p>
+
+    <div class="card">
+      <h2>目的</h2>
+      <p>ユーザーが自分の利用状況を一目で把握できるようにする。</p>
+    </div>
+
+    <div class="card">
+      <h2>画面要素</h2>
+      <table>
+        <thead>
+          <tr><th>要素</th><th>説明</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>サマリーカード</td><td>主要KPIを3つ表示</td></tr>
+          <tr><td>グラフ</td><td>過去30日の推移</td></tr>
+          <tr><td>通知一覧</td><td>未読を上部に表示</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2>アクション</h2>
+      <p>下のボタンから設定画面へ遷移します。</p>
+      <button class="cta">設定を開く</button>
+    </div>
+  </body>
+</html>

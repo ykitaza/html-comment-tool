@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CloudNote — メモを、もっと速く</title>
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body {
+        font-family: "Hiragino Sans", "Noto Sans JP", sans-serif;
+        color: #1a1a2e;
+        line-height: 1.7;
+        
+      }
+      header.hero {
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        color: #fff;
+        text-align: center;
+        padding: 80px 20px;
+      }
+      header.hero h1 { font-size: 44px; margin-bottom: 16px; }
+      header.hero p { font-size: 18px; opacity: 0.9; margin-bottom: 28px; }
+      .btn {
+        display: inline-block;
+        background: #fff;
+        color: #764ba2;
+        padding: 14px 32px;
+        border-radius: 30px;
+        font-weight: 700;
+        text-decoration: none;
+        font-size: 16px;
+      }
+      section { max-width: 960px; margin: 0 auto; padding: 60px 20px; }
+      section h2 { font-size: 30px; text-align: center; margin-bottom: 40px; }
+      .features {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 24px;
+      }
+      .feature {
+        border: 1px solid #e4e4ef;
+        border-radius: 14px;
+        padding: 28px 22px;
+        text-align: center;
+      }
+      .feature .icon { font-size: 40px; margin-bottom: 12px; }
+      .feature h3 { font-size: 19px; margin-bottom: 8px; }
+      .feature p { font-size: 14px; color: #555; }
+      .pricing {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 24px;
+      }
+      .plan {
+        border: 2px solid #e4e4ef;
+        border-radius: 14px;
+        padding: 32px 24px;
+        text-align: center;
+      }
+      .plan.popular { border-color: #764ba2; }
+      .plan .price { font-size: 36px; font-weight: 800; margin: 12px 0; }
+      .plan .price span { font-size: 15px; font-weight: 400; color: #888; }
+      .plan ul { list-style: none; margin: 20px 0; text-align: left; }
+      .plan ul li { padding: 6px 0; font-size: 14px; }
+      .plan ul li::before { content: "✓ "; color: #764ba2; font-weight: 700; }
+      .plan .btn { background: #764ba2; color: #fff; margin-top: 12px; }
+      footer {
+        background: #1a1a2e;
+        color: #aaa;
+        text-align: center;
+        padding: 30px;
+        font-size: 13px;
+      }
+    </style>
+  </head>
+  <body>
+    <header class="hero">
+      <h1>テスト</h1>
+      <p>メモを、もっと速く。どこからでも。</p>
+      <a href="#" class="btn">無料で始める</a>
+    </header>
+
+    <section id="features">
+      <h2>主な機能</h2>
+      <div class="features">
+        <div class="feature">
+          <div class="icon">⚡</div>
+          <h3>高速同期</h3>
+          <p>すべてのデバイスで瞬時に同期されます。</p>
+        </div>
+        <div class="feature">
+          <div class="icon">🔒</div>
+          <h3>安全な暗号化</h3>
+          <p>メモはエンドツーエンドで暗号化されます。</p>
+        </div>
+        <div class="feature">
+          <div class="icon">🔍</div>
+          <h3>強力な検索</h3>
+          <p>必要なメモを一瞬で見つけられます。</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="pricing">
+      <h2>料金プラン</h2>
+      <div class="pricing">
+        <div class="plan">
+          <h3>Free</h3>
+          <div class="price">¥0<span>/月</span></div>
+          <ul>
+            <li>メモ100件まで</li>
+            <li>2デバイス同期</li>
+          </ul>
+          <a href="#" class="btn">選ぶ</a>
+        </div>
+        <div class="plan popular">
+          <h3>Pro</h3>
+          <div class="price">¥980<span>/月</span></div>
+          <ul>
+            <li>メモ無制限</li>
+            <li>全デバイス同期</li>
+            <li>優先サポート</li>
+          </ul>
+          <a href="#" class="btn">選ぶ</a>
+        </div>
+        <div class="plan">
+          <h3>Team</h3>
+          <div class="price">¥2,980<span>/月</span></div>
+          <ul>
+            <li>Proの全機能</li>
+            <li>チーム共有</li>
+            <li>管理者ダッシュボード</li>
+          </ul>
+          <a href="#" class="btn">選ぶ</a>
+        </div>
+      </div>
+    </section>
+
+    <footer>© 2026 CloudNote Inc. All rights reserved.</footer>
+  </body>
+</html>

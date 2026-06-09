@@ -1,0 +1,20 @@
+{
+  "name": "html-comment-tool",
+  "version": "0.1.0",
+  "description": "Wrap any HTML file in a comment overlay; review the rendered page and copy AI-ready revision prompts.",
+  "type": "module",
+  "bin": {
+    "html-comment": "bin/cli.js"
+  },
+  "files": [
+    "bin",
+    "public"
+  ],
+  "scripts": {
+    "start": "node bin/cli.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT"
+}

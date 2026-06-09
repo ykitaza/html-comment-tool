@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>html-comment — review</title>
+    <link rel="stylesheet" href="/overlay.css" />
+  </head>
+  <body>
+    <div id="app">
+      <!-- Left: the rendered target inside an iframe -->
+      <main id="stage">
+        <div id="toolbar">
+          <span id="file-label">…</span>
+          <span class="spacer"></span>
+          <button id="mode-element" class="mode-btn active" title="クリックで要素を選択">
+            ⬚ 要素を選択
+          </button>
+          <button id="mode-text" class="mode-btn" title="テキストをドラッグで選択">
+            ✎ テキスト選択
+          </button>
+          <button id="mode-off" class="mode-btn" title="選択を無効化してページを普通に操作">
+            ✋ 操作モード
+          </button>
+        </div>
+        <div id="frame-wrap">
+          <iframe id="target" src="/target" title="target"></iframe>
+          <!-- Overlay canvas for hover highlight + pin markers -->
+          <div id="markers"></div>
+          <div id="hover-box"></div>
+        </div>
+      </main>
+
+      <!-- Right: comment panel -->
+      <aside id="panel">
+        <header>
+          <h1>コメント</h1>
+          <span id="count" class="badge">0</span>
+        </header>
+
+        <div id="hint" class="hint">
+          左のページで<strong>要素をクリック</strong>するか<strong>テキストを選択</strong>すると、ここにコメントを追加できます。
+        </div>
+
+        <ul id="comments"></ul>
+
+        <footer>
+          <button id="copy" class="primary" disabled>📋 AIプロンプトをコピー</button>
+          <button id="clear" class="ghost" disabled>すべて削除</button>
+          <div id="copied-toast" class="toast">コピーしました</div>
+        </footer>
+      </aside>
+    </div>
+
+    <!-- New-comment popover -->
+    <div id="composer" class="composer hidden">
+      <div class="composer-target" id="composer-target"></div>
+      <textarea id="composer-input" rows="3" placeholder="この箇所への指摘・修正指示を書く…"></textarea>
+      <div class="composer-actions">
+        <button id="composer-cancel" class="ghost">キャンセル</button>
+        <button id="composer-save" class="primary">追加 (⌘/Ctrl+Enter)</button>
+      </div>
+    </div>
+
+    <script type="module" src="/overlay.js"></script>
+  </body>
+</html>
